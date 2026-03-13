@@ -82,6 +82,6 @@ nginx -t && systemctl reload nginx
 
 echo ""
 echo "✅ Deploy concluído com sucesso!"
-echo "   API:      http://localhost:3001/api/health"
+echo "   API:      http://localhost:3002/api/health"
 echo "   Site:     https://biblioteca.g3tsistemas.com.br"
 echo ""
