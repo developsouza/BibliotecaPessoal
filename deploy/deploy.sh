@@ -9,9 +9,15 @@ set -e  # Aborta ao primeiro erro
 # ── Carregar nvm/node no PATH (necessário em sessões SSH não-interativas) ────
 export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
-# Fallback: adicionar caminhos comuns ao PATH caso nvm não esteja instalado
-export PATH="$PATH:/usr/local/bin:/usr/bin"
+# Ativar a versão Node em uso no servidor
+nvm use --lts 2>/dev/null || nvm use node 2>/dev/null || true
+
+# Localizar pm2 mesmo se o PATH ainda não estiver completo
+PM2=$(command -v pm2 2>/dev/null \
+    || ls "$NVM_DIR"/versions/node/*/bin/pm2 2>/dev/null | tail -1 \
+    || echo "pm2")
 
 APP_DIR="/var/www/booklibrary"
 REPO_URL="https://github.com/developsouza/BibliotecaPessoal.git"
@@ -75,11 +81,11 @@ mkdir -p "$APP_DIR/backend/uploads/avatars"
 echo "[6/6] Reiniciando a API com PM2..."
 cd "$APP_DIR"
 
-if pm2 describe booklibrary-api > /dev/null 2>&1; then
-    pm2 reload ecosystem.config.js --update-env
+if $PM2 describe booklibrary-api > /dev/null 2>&1; then
+    $PM2 reload ecosystem.config.js --update-env
 else
-    pm2 start ecosystem.config.js
-    pm2 save
+    $PM2 start ecosystem.config.js
+    $PM2 save
 fi
 
 # ── Nginx ───────────────────────────────────────────────────
