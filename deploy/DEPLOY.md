@@ -33,7 +33,7 @@ sudo chown -R $USER:$USER /var/www/booklibrary
 
 ```bash
 # No servidor
-git clone https://github.com/SEU_USUARIO/SEU_REPO.git /var/www/booklibrary
+git clone https://github.com/developsouza/BibliotecaPessoal.git /var/www/booklibrary
 ```
 
 ### Opção B — via rsync (sem Git)

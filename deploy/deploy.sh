@@ -7,7 +7,7 @@
 set -e  # Aborta ao primeiro erro
 
 APP_DIR="/var/www/booklibrary"
-REPO_URL="https://github.com/SEU_USUARIO/SEU_REPO.git"   # <-- ajuste aqui
+REPO_URL="https://github.com/developsouza/BibliotecaPessoal.git"
 BRANCH="main"
 
 echo "========================================"
