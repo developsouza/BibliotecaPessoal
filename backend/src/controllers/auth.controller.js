@@ -173,7 +173,7 @@ function getMe(req, res) {
 async function updateProfile(req, res) {
     try {
         const { fullName } = req.body;
-        const avatarPath = req.file ? `/uploads/covers/${req.file.filename}` : undefined;
+        const avatarPath = req.file ? `/uploads/avatars/${req.file.filename}` : undefined;
 
         if (fullName) {
             db.prepare("UPDATE users SET full_name = ? WHERE id = ?").run(fullName, req.user.id);

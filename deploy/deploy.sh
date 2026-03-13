@@ -62,8 +62,7 @@ npm run build
 echo "[5/6] Garantindo pastas de dados e uploads..."
 mkdir -p "$APP_DIR/backend/data"
 mkdir -p "$APP_DIR/backend/uploads/covers"
-# Ajustar permissões para o usuário www-data (Nginx)
-chown -R www-data:www-data "$APP_DIR/backend/data" "$APP_DIR/backend/uploads" 2>/dev/null || true
+mkdir -p "$APP_DIR/backend/uploads/avatars"
 
 # ── 6. PM2 — reiniciar / iniciar ────────────────────────────
 echo "[6/6] Reiniciando a API com PM2..."

@@ -10,7 +10,7 @@ router.post("/login", ctrl.login);
 
 // Protegidas
 router.get("/me", auth, ctrl.getMe);
-router.put("/profile", auth, upload.single("avatarFile"), ctrl.updateProfile);
+router.put("/profile", auth, upload.avatar.single("avatarFile"), ctrl.updateProfile);
 router.post("/change-password", auth, ctrl.changePassword);
 
 module.exports = router;
