@@ -6,6 +6,13 @@
 
 set -e  # Aborta ao primeiro erro
 
+# ── Carregar nvm/node no PATH (necessário em sessões SSH não-interativas) ────
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Fallback: adicionar caminhos comuns ao PATH caso nvm não esteja instalado
+export PATH="$PATH:/usr/local/bin:/usr/bin"
+
 APP_DIR="/var/www/booklibrary"
 REPO_URL="https://github.com/developsouza/BibliotecaPessoal.git"
 BRANCH="main"
