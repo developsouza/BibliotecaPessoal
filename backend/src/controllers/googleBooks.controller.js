@@ -6,8 +6,36 @@ const { invalidateCache: invalidateDashCache } = require("./dashboard.controller
 const GOOGLE_BOOKS_API_KEY = process.env.GOOGLE_BOOKS_API_KEY || "";
 const GOOGLE_BOOKS_BASE_URL = "https://www.googleapis.com/books/v1/volumes";
 
-// Função utilitária para buscar na API do Google Books
+// ─── Cache em memória para buscas (TTL: 5 minutos) ───────────────────────────
+const SEARCH_CACHE_TTL = 5 * 60 * 1000; // 5 min em ms
+const searchCache = new Map(); // key → { data, expiresAt }
+
+function getCached(key) {
+    const entry = searchCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+        searchCache.delete(key);
+        return null;
+    }
+    return entry.data;
+}
+
+function setCache(key, data) {
+    // Evita crescimento ilimitado do cache
+    if (searchCache.size >= 200) {
+        const oldest = searchCache.keys().next().value;
+        searchCache.delete(oldest);
+    }
+    searchCache.set(key, { data, expiresAt: Date.now() + SEARCH_CACHE_TTL });
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Busca pública (até 40 resultados) — usada no endpoint /search
 async function fetchGoogleBooks(query) {
+    const cacheKey = `search:${query}`;
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
     const params = {
         q: query,
         maxResults: 40,
@@ -22,6 +50,31 @@ async function fetchGoogleBooks(query) {
         params,
         timeout: 10000,
     });
+    setCache(cacheKey, response.data);
+    return response.data;
+}
+
+// Busca compacta (5 resultados) — usada internamente no enriquecimento
+async function fetchGoogleBooksLite(query) {
+    const cacheKey = `lite:${query}`;
+    const cached = getCached(cacheKey);
+    if (cached) return cached;
+
+    const params = {
+        q: query,
+        maxResults: 5,
+        printType: "books",
+        orderBy: "relevance",
+    };
+    if (GOOGLE_BOOKS_API_KEY) {
+        params.key = GOOGLE_BOOKS_API_KEY;
+    }
+
+    const response = await axios.get(GOOGLE_BOOKS_BASE_URL, {
+        params,
+        timeout: 10000,
+    });
+    setCache(cacheKey, response.data);
     return response.data;
 }
 
@@ -311,13 +364,20 @@ const enrichBook = async (req, res) => {
     const book = db.prepare("SELECT * FROM books WHERE id = ? AND tenant_id = ?").get(bookId, tenantId);
     if (!book) return res.status(404).json({ error: "Livro não encontrado" });
 
+    // Guard: se todos os campos enriquecíveis já estão preenchidos, evita chamar a API
+    const enrichableFields = ["publisher", "publish_year", "pages", "isbn", "language", "synopsis", "cover_image_path", "category_id"];
+    const missingFields = enrichableFields.filter((f) => !book[f]);
+    if (missingFields.length === 0) {
+        return res.json({ message: "O livro já possui todos os dados preenchidos", book });
+    }
+
     // ── Tenta buscar o volume no Google Books com múltiplos fallbacks ──
     async function tryFetchVolume() {
         // 1) ISBN
         if (book.isbn) {
             try {
                 const normalizedIsbn = book.isbn.replace(/[-\s]/g, "");
-                const r = await fetchGoogleBooks(`isbn:${normalizedIsbn}`);
+                const r = await fetchGoogleBooksLite(`isbn:${normalizedIsbn}`);
                 if (r.items?.length > 0) return r.items[0];
             } catch {
                 /* ignora, continua */
@@ -327,7 +387,7 @@ const enrichBook = async (req, res) => {
         // 2) intitle + inauthor (operadores estruturados)
         try {
             const q = `intitle:"${book.title}" inauthor:"${book.author}"`;
-            const r = await fetchGoogleBooks(q);
+            const r = await fetchGoogleBooksLite(q);
             if (r.items?.length > 0) return r.items[0];
         } catch {
             /* ignora, continua */
@@ -336,7 +396,7 @@ const enrichBook = async (req, res) => {
         // 3) Busca simples sem operadores (mais tolerante a títulos com caracteres especiais)
         try {
             const q = `${book.title} ${book.author}`;
-            const r = await fetchGoogleBooks(q);
+            const r = await fetchGoogleBooksLite(q);
             if (r.items?.length > 0) return r.items[0];
         } catch {
             /* ignora, continua */
@@ -344,7 +404,7 @@ const enrichBook = async (req, res) => {
 
         // 4) Só o título, sem o autor
         try {
-            const r = await fetchGoogleBooks(book.title);
+            const r = await fetchGoogleBooksLite(book.title);
             if (r.items?.length > 0) return r.items[0];
         } catch {
             /* ignora, continua */
