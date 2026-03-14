@@ -9,7 +9,6 @@
 const cron = require("node-cron");
 const fs = require("fs");
 const path = require("path");
-const axios = require("axios");
 const db = require("../config/database");
 
 const COVERS_DIR = path.join(__dirname, "../../uploads/covers");
@@ -110,68 +109,11 @@ function backupDatabase() {
 }
 
 // ─────────────────────────────────────────
-// 3. EnrichBooksAuto
-//    A cada 6 horas
-//    Enriquece até 10 livros por execução cujos campos
-//    cover_image_path IS NULL OR pages IS NULL OR isbn IS NULL
-//    usando a API do Google Books (mesmo endpoint do controller)
+// 3. EnrichBooksAuto — DESATIVADO
+//    O enriquecimento automático foi desabilitado para evitar consumo
+//    desnecessário da cota da API do Google Books.
+//    O usuário pode enriquecer livros manualmente na página de detalhes.
 // ─────────────────────────────────────────
-async function enrichBooksAuto() {
-    try {
-        // Livros candidatos: sem capa OU sem páginas OU sem ISBN
-        const candidates = db
-            .prepare(
-                `SELECT id, title, author, isbn
-                 FROM books
-                 WHERE (cover_image_path IS NULL OR pages IS NULL OR isbn IS NULL)
-                   AND title IS NOT NULL AND title != ''
-                 ORDER BY created_at DESC
-                 LIMIT 10`,
-            )
-            .all();
-
-        if (!candidates.length) return;
-
-        let enriched = 0;
-        for (const book of candidates) {
-            try {
-                const q = book.isbn ? `isbn:${book.isbn}` : `intitle:${encodeURIComponent(book.title)}`;
-                const resp = await axios.get(`https://www.googleapis.com/books/v1/volumes?q=${q}&maxResults=1`, { timeout: 8000 });
-                const item = resp.data?.items?.[0]?.volumeInfo;
-                if (!item) continue;
-
-                const updates = {};
-                if (!book.isbn && item.industryIdentifiers) {
-                    const isbn13 = item.industryIdentifiers.find((i) => i.type === "ISBN_13");
-                    const isbn10 = item.industryIdentifiers.find((i) => i.type === "ISBN_10");
-                    updates.isbn = isbn13?.identifier || isbn10?.identifier;
-                }
-
-                const existing = db.prepare("SELECT cover_image_path, pages FROM books WHERE id = ?").get(book.id);
-                if (!existing.pages && item.pageCount) updates.pages = item.pageCount;
-
-                if (Object.keys(updates).length) {
-                    const setClauses = Object.keys(updates)
-                        .map((k) => `${k} = ?`)
-                        .join(", ");
-                    db.prepare(`UPDATE books SET ${setClauses} WHERE id = ?`).run(...Object.values(updates), book.id);
-                    enriched++;
-                }
-
-                // Pequena pausa para não sobrecarregar a API
-                await new Promise((r) => setTimeout(r, 500));
-            } catch {
-                // ignora falha individual
-            }
-        }
-
-        if (enriched > 0) {
-            console.log(`[Jobs] EnrichBooksAuto: ${enriched} livro(s) enriquecido(s)`);
-        }
-    } catch (err) {
-        console.error("[Jobs] EnrichBooksAuto erro:", err.message);
-    }
-}
 
 // ─────────────────────────────────────────
 // Registrar todos os jobs
@@ -189,13 +131,7 @@ function startJobs() {
         cleanupOldCovers();
     });
 
-    // Enriquecimento automático a cada 6 horas
-    cron.schedule("0 */6 * * *", () => {
-        console.log("[Jobs] Iniciando EnrichBooksAuto...");
-        enrichBooksAuto();
-    });
-
-    console.log("✅ Background jobs registrados (Backup 02:00 | Cleanup 03:00 | Enrich *:00/6h)");
+    console.log("✅ Background jobs registrados (Backup 02:00 | Cleanup 03:00)");
 }
 
-module.exports = { startJobs, backupDatabase, cleanupOldCovers, enrichBooksAuto };
+module.exports = { startJobs, backupDatabase, cleanupOldCovers };
