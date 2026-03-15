@@ -4,6 +4,8 @@ import { useAuth } from "../../hooks/useAuth";
 import api from "../../api/axios";
 import billingService, { PLAN_FEATURES, SUBSCRIPTION_STATUS_LABEL } from "../../api/billingService";
 
+const AVATAR_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3001/api").replace(/\/api$/, "");
+
 const PLAN_COLORS = {
     free: "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300",
     premium: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300",
@@ -41,6 +43,7 @@ export default function ProfilePage() {
 
     const [avatarFile, setAvatarFile] = useState(null);
     const [avatarPreview, setAvatarPreview] = useState(null);
+    const [avatarErr, setAvatarErr] = useState(false);
 
     const [subscription, setSubscription] = useState(null);
     const [subLoading, setSubLoading] = useState(true);
@@ -57,6 +60,10 @@ export default function ProfilePage() {
         if (user) setProfile({ fullName: user.fullName || "", email: user.email || "" });
     }, [user]);
 
+    useEffect(() => {
+        setAvatarErr(false);
+    }, [user?.avatarPath, avatarPreview]);
+
     const handleProfileSubmit = async (e) => {
         e.preventDefault();
         setProfileMsg("");
@@ -70,6 +77,8 @@ export default function ProfilePage() {
             setProfileMsg("Perfil atualizado com sucesso!");
             updateUser(data);
             setAvatarFile(null);
+            setAvatarPreview(null);
+            setAvatarErr(false);
         } catch (err) {
             setProfileErr(err.response?.data?.error || "Erro ao atualizar perfil");
         } finally {
@@ -105,7 +114,7 @@ export default function ProfilePage() {
         setAvatarPreview(URL.createObjectURL(file));
     };
 
-    const avatarSrc = avatarPreview || (user?.avatarPath ? "http://localhost:3001" + user.avatarPath : null);
+    const avatarSrc = !avatarErr ? avatarPreview || (user?.avatarPath ? `${AVATAR_BASE}${user.avatarPath}` : null) : null;
     const initials = (user?.fullName || "?")
         .split(" ")
         .map((n) => n[0])
@@ -124,7 +133,11 @@ export default function ProfilePage() {
             <div className="card p-5 flex items-center gap-4">
                 <div className="relative">
                     <div className="w-16 h-16 rounded-full overflow-hidden bg-primary-100 dark:bg-primary-900 flex items-center justify-center text-primary-600 dark:text-primary-300 font-bold text-2xl">
-                        {avatarSrc ? <img src={avatarSrc} alt="avatar" className="w-full h-full object-cover" /> : initials}
+                        {avatarSrc ? (
+                            <img src={avatarSrc} alt="avatar" className="w-full h-full object-cover" onError={() => setAvatarErr(true)} />
+                        ) : (
+                            initials
+                        )}
                     </div>
                     <label className="absolute bottom-0 right-0 w-6 h-6 bg-primary-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-primary-700 transition-colors">
                         <i className="fa-solid fa-pen text-white text-xs" />

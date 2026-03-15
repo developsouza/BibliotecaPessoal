@@ -1,13 +1,21 @@
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
+
+const AVATAR_BASE = (import.meta.env.VITE_API_URL || "http://localhost:3001/api").replace(/\/api$/, "");
 
 export default function Navbar({ onMenuClick }) {
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
     const navigate = useNavigate();
+    const [avatarErr, setAvatarErr] = useState(false);
 
-    const avatarSrc = user?.avatarPath ? `http://localhost:3001${user.avatarPath}` : null;
+    useEffect(() => {
+        setAvatarErr(false);
+    }, [user?.avatarPath]);
+
+    const avatarSrc = !avatarErr && user?.avatarPath ? `${AVATAR_BASE}${user.avatarPath}` : null;
 
     return (
         <header className="border-b border-[--color-border] bg-[--color-surface] px-4 py-3">
@@ -50,6 +58,7 @@ export default function Navbar({ onMenuClick }) {
                                 src={avatarSrc}
                                 alt="avatar"
                                 className="w-8 h-8 rounded-full object-cover ring-2 ring-[--color-border] group-hover:ring-primary-400 transition-all"
+                                onError={() => setAvatarErr(true)}
                             />
                         ) : (
                             <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 flex items-center justify-center text-sm font-bold ring-2 ring-[--color-border] group-hover:ring-primary-400 transition-all">
